@@ -10,8 +10,11 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-ml-kit/face-detection": "^1.3.2",
+    "AwesomeProject": "file:",
     "react": "18.3.1",
-    "react-native": "0.75.3"
+    "react-native": "0.75.3",
+    "react-native-vision-camera": "^4.5.3"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

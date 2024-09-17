@@ -1,43 +1,105 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
   SafeAreaView,
-  ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   useColorScheme,
   View,
+  Alert,
+  Linking,
+  TouchableOpacity,
 } from 'react-native';
-
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  Camera,
+  useCameraDevice,
+  CameraPermissionStatus,
+} from 'react-native-vision-camera';
+import detectFaces from '@react-native-ml-kit/face-detection';
 
-type SectionProps = PropsWithChildren<{
+type SectionProps = {
   title: string;
-}>;
+  children: React.ReactNode;
+};
 
 function Section({children, title}: SectionProps): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
+  const device = useCameraDevice('back');
+  const cameraRef = useRef<Camera>(null);
+
+  useEffect(() => {
+    const checkAndRequestCameraPermission = async () => {
+      const cameraPermission: CameraPermissionStatus =
+        await Camera.getCameraPermissionStatus();
+
+      if (cameraPermission === 'granted') {
+        return;
+      } else if (
+        cameraPermission === 'denied' ||
+        cameraPermission === 'restricted'
+      ) {
+        Alert.alert(
+          'Quyền truy cập Camera bị từ chối',
+          'Vui lòng cấp quyền truy cập Camera trong cài đặt của thiết bị để tiếp tục.',
+          [
+            {
+              text: 'Hủy bỏ',
+              style: 'cancel',
+            },
+            {
+              text: 'Mở cài đặt',
+              onPress: () => {
+                Linking.openSettings();
+              },
+            },
+          ],
+        );
+      } else if (cameraPermission === 'not-determined') {
+        const newCameraPermission: CameraPermissionStatus =
+          await Camera.requestCameraPermission();
+        if (newCameraPermission !== 'granted') {
+          Alert.alert(
+            'Quyền truy cập Camera bị từ chối',
+            'Bạn đã từ chối quyền truy cập Camera, ứng dụng sẽ không thể sử dụng Camera.',
+          );
+        }
+      }
+    };
+
+    checkAndRequestCameraPermission();
+  }, []);
+
+  const handleCapturePhoto = async () => {
+    if (cameraRef.current && device) {
+      try {
+        const photo = await cameraRef.current.takePhoto({});
+
+        const faces = await detectFaces.detect(photo.path);
+        if (faces.length > 0) {
+          Alert.alert(
+            'Khuôn mặt được nhận diện',
+            `Đã phát hiện ${faces.length} khuôn mặt.`,
+          );
+        } else {
+          Alert.alert('Không phát hiện được khuôn mặt');
+        }
+      } catch (error) {
+        console.error('Lỗi khi chụp ảnh: ', error);
+        Alert.alert('Lỗi', 'Không thể chụp ảnh. Vui lòng thử lại.');
+      }
+    }
+  };
+
+  if (device == null) {
+    return <Text>No camera available</Text>;
+  }
+
   return (
     <View style={styles.sectionContainer}>
       <Text
         style={[
           styles.sectionTitle,
           {
-            color: isDarkMode ? Colors.white : Colors.black,
+            color: isDarkMode ? 'white' : 'black',
           },
         ]}>
         {title}
@@ -46,11 +108,22 @@ function Section({children, title}: SectionProps): React.JSX.Element {
         style={[
           styles.sectionDescription,
           {
-            color: isDarkMode ? Colors.light : Colors.dark,
+            color: isDarkMode ? 'light' : 'dark',
           },
         ]}>
         {children}
       </Text>
+      <Camera
+        style={styles.camera}
+        device={device}
+        isActive={true}
+        ref={cameraRef}
+      />
+      <TouchableOpacity
+        style={styles.captureButton}
+        onPress={handleCapturePhoto}>
+        <Text style={styles.buttonText}>Quét khuôn mặt</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -59,47 +132,22 @@ function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
 
   const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+    backgroundColor: isDarkMode ? 'darker' : 'lighter',
+    flex: 1,
   };
 
   return (
     <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+      <Section title="Face Detection"> </Section>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sectionTitle: {
     fontSize: 24,
@@ -110,8 +158,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '400',
   },
-  highlight: {
-    fontWeight: '700',
+  camera: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  captureButton: {
+    position: 'absolute',
+    bottom: 50,
+    width: 150,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'blue',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
